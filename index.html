@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Unbounded:wght@700;800&display=swap">
 <style>
-/* Layout: one narrow column — title, task (reversed WAV: whole + by parts), recorder deck (the only card), recorded parts, glued result */
+/* Layout: one narrow column — title, task tabs, task (reversed WAV: whole + editable parts), recorder deck (the only card), my parts, glued result */
 :root{
   --bg:#EDEFF3; --surface:#F9FAFC; --ink:#151A26; --muted:#5D6474; --line:#D5DAE2;
   --accent:#2C38C9; --rec:#E0352B;
@@ -31,7 +31,14 @@ header h1{font:800 clamp(40px,10vw,76px)/.95 var(--f-display);letter-spacing:-.0
 .backwards{display:block;margin-top:12px;font:500 13px/1 var(--f-mono);letter-spacing:.14em;color:var(--accent)}
 .sub{color:var(--muted);max-width:56ch;margin:14px 0 0}
 
+/* task tabs */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto;margin-top:-8px}
+.tab{font:700 13px/1 var(--f-display);letter-spacing:.04em;color:var(--muted);background:none;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;padding:14px 14px 12px;cursor:pointer;white-space:nowrap}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+
 /* sections */
+.workspace{display:flex;flex-direction:column;gap:32px}
 .block{display:flex;flex-direction:column;gap:10px}
 .block-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px 16px;flex-wrap:wrap}
 .block-head h2{font:700 13px/1 var(--f-display);letter-spacing:.08em;text-transform:uppercase;margin:0}
@@ -46,20 +53,31 @@ header h1{font:800 clamp(40px,10vw,76px)/.95 var(--f-display);letter-spacing:-.0
 .btn{font:500 14px/1 var(--f-body);color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:999px;padding:11px 16px;cursor:pointer}
 .btn:hover{border-color:var(--ink)}
 .task-row{display:grid;grid-template-columns:52px minmax(0,1fr);gap:12px 16px;align-items:center;padding-block:18px;border-top:1px solid var(--line)}
-.task-row .wave{height:76px}
-.segs-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding-block:14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.task-wave-wrap{position:relative}
+.task-wave-wrap .wave{height:84px}
+.cuts{position:absolute;inset:0;pointer-events:none}
+.cut{position:absolute;top:0;bottom:0;width:22px;margin-left:-11px;padding:0;border:0;background:transparent;cursor:ew-resize;pointer-events:auto;touch-action:none}
+.cut::before{content:"";position:absolute;left:10px;top:0;bottom:0;width:2px;background:var(--muted);opacity:.6}
+.cut::after{content:"";position:absolute;left:5px;top:0;width:12px;height:12px;border-radius:3px;background:var(--muted)}
+.cut:hover::before,.cut:hover::after,.cut.drag::before,.cut.drag::after,.cut:focus-visible::before,.cut:focus-visible::after{background:var(--accent);opacity:1}
+.cut:focus-visible{outline:none}
+
+.segs-box{display:flex;flex-direction:column;gap:12px;padding-block:14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.segs-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px}
 .segs-label{font-size:14px;font-weight:600}
-.segs{display:flex;flex-wrap:wrap;gap:8px;flex:1;min-width:0}
+.seg-controls{display:flex;flex-wrap:wrap;gap:8px 20px}
+.stepper{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
+.stepper button{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--ink);font:500 16px/1 var(--f-mono);cursor:pointer}
+.stepper button:hover{border-color:var(--ink)}
+.stepper output{font:500 14px/1 var(--f-mono);color:var(--ink);min-width:5ch;text-align:center;white-space:nowrap}
+.segs{display:flex;flex-wrap:wrap;gap:8px}
 .seg{display:inline-flex;align-items:center;gap:8px;font:500 13px/1 var(--f-mono);font-variant-numeric:tabular-nums;color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:999px;padding:8px 12px 8px 10px;cursor:pointer}
 .seg:hover{border-color:var(--ink)}
 .seg svg{width:12px;height:12px;flex:none}
 .seg .d{color:var(--muted)}
 .seg[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 .seg[aria-pressed="true"] .d{color:inherit;opacity:.7}
-.stepper{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
-.stepper button{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--ink);font:500 16px/1 var(--f-mono);cursor:pointer}
-.stepper button:hover{border-color:var(--ink)}
-.stepper output{font:500 14px/1 var(--f-mono);color:var(--ink);min-width:2ch;text-align:center}
+.hint{margin:0;font-size:13px;color:var(--muted)}
 
 /* recorder deck */
 .deck{display:flex;gap:24px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:24px}
@@ -88,7 +106,7 @@ kbd{font:500 12px/1.4 var(--f-mono);color:var(--ink);border:1px solid var(--line
 .msg:empty{display:none}
 .msg[data-kind="error"]{color:var(--rec)}
 
-/* recorded parts */
+/* my parts */
 .clear{background:none;border:0;padding:0;font:500 13px/1 var(--f-body);color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .clear:hover,.clear.armed{color:var(--rec)}
 .parts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
@@ -143,115 +161,138 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
   <header>
     <h1>Наоборот</h1>
     <span class="backwards" aria-hidden="true">← ТОРОБОАН</span>
-    <p class="sub">Сверху задание: перевёрнутая запись, её можно слушать целиком и по частям. Ниже записывай свой голос по частям: части склеятся в одну дорожку, и она перевернётся. Всё считается в браузере, запись никуда не отправляется.</p>
+    <p class="sub">Задание — перевёрнутая запись, её можно слушать целиком и по частям. Ниже записывай свой голос по частям: части склеятся в одну дорожку, и она перевернётся. У каждого задания свои записи. Всё считается в браузере, запись никуда не отправляется.</p>
   </header>
 
-  <section class="block" aria-labelledby="taskTitle">
-    <div class="block-head">
-      <h2 id="taskTitle">Задание</h2>
-      <span id="taskMeta" class="meta"></span>
-    </div>
-    <div id="taskNote" class="task-note">
-      <p id="taskNoteText">Загружаю задание…</p>
-      <button id="taskPick" class="btn" type="button" hidden>Выбрать файл задания</button>
-      <input id="taskFile" type="file" accept="audio/*" hidden>
-    </div>
-    <div id="taskBody" hidden>
-      <div class="task-row">
-        <button class="play" type="button" data-key="task"></button>
-        <div class="track-body">
-          <div class="track-head"><span class="label">Целиком</span><span class="time" data-time="task"></span></div>
-          <canvas class="wave" data-key="task" aria-hidden="true"></canvas>
-        </div>
-      </div>
-      <div class="segs-row">
-        <span class="segs-label">По частям</span>
-        <div id="segs" class="segs"></div>
-        <div class="stepper" role="group" aria-label="Длина части задания">
-          <span>по</span>
-          <button id="segMinus" type="button" aria-label="Части короче">−</button>
-          <output id="segLen">2 с</output>
-          <button id="segPlus" type="button" aria-label="Части длиннее">+</button>
-        </div>
-      </div>
-    </div>
-  </section>
+  <nav id="tabs" class="tabs" role="tablist" aria-label="Задания"></nav>
 
-  <section class="deck" id="deck" aria-label="Запись">
-    <button id="rec" class="rec" type="button" aria-label="Записать часть 1" aria-pressed="false"><span class="rec-dot"></span></button>
-    <div class="deck-main">
-      <div class="deck-top">
-        <span id="timer" class="timer">0:00.0</span>
-        <span id="recState" class="chip">часть 1</span>
+  <div id="workspace" class="workspace" role="tabpanel">
+    <section class="block" aria-labelledby="taskTitle">
+      <div class="block-head">
+        <h2 id="taskTitle">Задание</h2>
+        <span id="taskMeta" class="meta"></span>
       </div>
-      <canvas id="live" class="live" aria-hidden="true"></canvas>
-      <div class="deck-foot">
-        <span><kbd>Пробел</kbd> старт / стоп</span>
-        <button id="micBtn" class="linkbtn mic-off" type="button" hidden>Выключить микрофон</button>
-        <button id="fileBtn" class="linkbtn" type="button">или добавить аудиофайл</button>
-        <input id="file" type="file" accept="audio/*,video/*" multiple hidden>
+      <div id="taskNote" class="task-note">
+        <p id="taskNoteText">Загружаю задание…</p>
+        <button id="taskPick" class="btn" type="button" hidden>Выбрать файл задания</button>
+        <input id="taskFile" type="file" accept="audio/*" hidden>
       </div>
-    </div>
-  </section>
-  <p id="msg" class="msg" role="status" aria-live="polite"></p>
-
-  <section class="block" aria-labelledby="partsTitle">
-    <div class="block-head">
-      <h2 id="partsTitle">Мои части</h2>
-      <div class="head-right">
-        <span id="partsMeta" class="meta"></span>
-        <button id="clearBtn" class="clear" type="button" hidden>Очистить</button>
-      </div>
-    </div>
-    <p id="partsEmpty" class="empty">Пока пусто. Нажми красную кнопку, скажи первую часть и останови запись. Потом так же запиши вторую, третью и сколько нужно. Каждая часть встанет в конец.</p>
-    <ol id="parts" class="parts" hidden></ol>
-  </section>
-
-  <section id="result" class="block" aria-labelledby="resultTitle" hidden>
-    <div class="block-head">
-      <h2 id="resultTitle">Результат</h2>
-      <span id="resultMeta" class="meta"></span>
-    </div>
-    <div class="tracks">
-      <div class="track">
-        <button class="play" type="button" data-key="orig"></button>
-        <div class="track-body">
-          <div class="track-head"><span class="label">Склеено</span><span class="time" data-time="orig"></span></div>
-          <canvas class="wave" data-key="orig" aria-hidden="true"></canvas>
+      <div id="taskBody" hidden>
+        <div class="task-row">
+          <button class="play" type="button" data-key="task"></button>
+          <div class="track-body">
+            <div class="track-head"><span class="label">Целиком</span><span class="time" data-time="task"></span></div>
+            <div id="taskWrap" class="task-wave-wrap">
+              <canvas class="wave" data-key="task" aria-hidden="true"></canvas>
+              <div id="cuts" class="cuts"></div>
+            </div>
+          </div>
         </div>
-        <button class="dl" type="button" data-key="orig">Скачать WAV</button>
-      </div>
-      <div class="track rev">
-        <button class="play" type="button" data-key="rev"></button>
-        <div class="track-body">
-          <div class="track-head"><span class="label">Наоборот</span><span class="time" data-time="rev"></span></div>
-          <canvas class="wave" data-key="rev" aria-hidden="true"></canvas>
+        <div class="segs-box">
+          <div class="segs-head">
+            <span class="segs-label">По частям</span>
+            <div class="seg-controls">
+              <div class="stepper" role="group" aria-label="Количество частей задания">
+                <span>частей</span>
+                <button id="cntMinus" type="button" aria-label="Меньше частей">−</button>
+                <output id="cntOut">1</output>
+                <button id="cntPlus" type="button" aria-label="Больше частей">+</button>
+              </div>
+              <div class="stepper" role="group" aria-label="Длина части задания">
+                <span>по</span>
+                <button id="lenMinus" type="button" aria-label="Части короче">−</button>
+                <output id="lenOut">2 с</output>
+                <button id="lenPlus" type="button" aria-label="Части длиннее">+</button>
+              </div>
+            </div>
+          </div>
+          <div id="segs" class="segs"></div>
+          <p class="hint">Границы частей на волне можно перетаскивать: так длина каждой части задаётся отдельно.</p>
         </div>
-        <button class="dl" type="button" data-key="rev">Скачать WAV</button>
       </div>
-    </div>
-  </section>
+    </section>
+
+    <section class="deck" id="deck" aria-label="Запись">
+      <button id="rec" class="rec" type="button" aria-label="Записать часть 1" aria-pressed="false"><span class="rec-dot"></span></button>
+      <div class="deck-main">
+        <div class="deck-top">
+          <span id="timer" class="timer">0:00.0</span>
+          <span id="recState" class="chip">часть 1</span>
+        </div>
+        <canvas id="live" class="live" aria-hidden="true"></canvas>
+        <div class="deck-foot">
+          <span><kbd>Пробел</kbd> старт / стоп</span>
+          <button id="micBtn" class="linkbtn mic-off" type="button" hidden>Выключить микрофон</button>
+          <button id="fileBtn" class="linkbtn" type="button">или добавить аудиофайл</button>
+          <input id="file" type="file" accept="audio/*,video/*" multiple hidden>
+        </div>
+      </div>
+    </section>
+    <p id="msg" class="msg" role="status" aria-live="polite"></p>
+
+    <section class="block" aria-labelledby="partsTitle">
+      <div class="block-head">
+        <h2 id="partsTitle">Мои части</h2>
+        <div class="head-right">
+          <span id="partsMeta" class="meta"></span>
+          <button id="clearBtn" class="clear" type="button" hidden>Очистить</button>
+        </div>
+      </div>
+      <p id="partsEmpty" class="empty">Пока пусто. Нажми красную кнопку, скажи первую часть и останови запись. Потом так же запиши вторую, третью и сколько нужно. Каждая часть встанет в конец.</p>
+      <ol id="parts" class="parts" hidden></ol>
+    </section>
+
+    <section id="result" class="block" aria-labelledby="resultTitle" hidden>
+      <div class="block-head">
+        <h2 id="resultTitle">Результат</h2>
+        <span id="resultMeta" class="meta"></span>
+      </div>
+      <div class="tracks">
+        <div class="track">
+          <button class="play" type="button" data-key="orig"></button>
+          <div class="track-body">
+            <div class="track-head"><span class="label">Склеено</span><span class="time" data-time="orig"></span></div>
+            <canvas class="wave" data-key="orig" aria-hidden="true"></canvas>
+          </div>
+          <button class="dl" type="button" data-key="orig">Скачать WAV</button>
+        </div>
+        <div class="track rev">
+          <button class="play" type="button" data-key="rev"></button>
+          <div class="track-body">
+            <div class="track-head"><span class="label">Наоборот</span><span class="time" data-time="rev"></span></div>
+            <canvas class="wave" data-key="rev" aria-hidden="true"></canvas>
+          </div>
+          <button class="dl" type="button" data-key="rev">Скачать WAV</button>
+        </div>
+      </div>
+    </section>
+  </div>
 
   <footer>
-    <p>Задание берётся из файла <code>zadanie.wav</code>, который лежит в той же папке, что и страница. Задание режется на части по 2 секунды, кнопками − и + длина части меняется от 1 до 5 секунд.</p>
-    <p>Клик по волне запускает дорожку с этого места. Риски на волнах показывают стыки частей. Разрешение на микрофон спрашивается один раз: в паузе между частями ничего не сохраняется, на шкале это серые полоски, в часть попадают только красные.</p>
+    <p>Задания берутся из файлов <code>zadanie.wav</code> и <code>zadanie2.wav</code>, которые лежат в той же папке, что и страница. Сначала задание режется по 2 секунды. Количество частей и их длина меняются кнопками − и +, а каждую границу можно сдвинуть на волне мышкой, пальцем или стрелками на клавиатуре.</p>
+    <p>Клик по волне запускает дорожку с этого места. Риски на волнах результата показывают стыки частей. Разрешение на микрофон спрашивается один раз: в паузе между частями ничего не сохраняется, на шкале это серые полоски, в часть попадают только красные.</p>
     <p>Если микрофон не включается, открой страницу в Chrome, Edge или Firefox и разреши доступ к микрофону (значок слева от адресной строки).</p>
   </footer>
 </main>
 
 <script>
 (() => {
-  // Task file: put it in the same folder as this page.
-  const TASK_URL = 'zadanie.wav';
+  // Task files: put them in the same folder as this page. Add a line to add a task.
+  const TASKS = [
+    { url: 'zadanie.wav',  title: 'Задание 1' },
+    { url: 'zadanie2.wav', title: 'Задание 2' }
+  ];
+  const LEN_DEFAULT = 2, LEN_MIN = 0.5, LEN_MAX = 10, LEN_STEP = 0.5, MIN_PIECE = 0.3, COUNT_MAX = 40;
 
   const $ = (s) => document.querySelector(s);
   const recBtn = $('#rec'), timerEl = $('#timer'), stateEl = $('#recState'), live = $('#live'),
         msg = $('#msg'), fileInput = $('#file'), fileBtn = $('#fileBtn'), micBtn = $('#micBtn'), deck = $('#deck'),
         partsEl = $('#parts'), partsEmpty = $('#partsEmpty'), partsMeta = $('#partsMeta'), clearBtn = $('#clearBtn'),
-        resultEl = $('#result'), resultMeta = $('#resultMeta'),
+        resultEl = $('#result'), resultMeta = $('#resultMeta'), tabsEl = $('#tabs'),
         taskNote = $('#taskNote'), taskNoteText = $('#taskNoteText'), taskPick = $('#taskPick'), taskFile = $('#taskFile'),
-        taskBody = $('#taskBody'), taskMeta = $('#taskMeta'), segsEl = $('#segs'),
-        segMinus = $('#segMinus'), segPlus = $('#segPlus'), segLen = $('#segLen');
+        taskBody = $('#taskBody'), taskMeta = $('#taskMeta'), taskWrap = $('#taskWrap'), cutsEl = $('#cuts'), segsEl = $('#segs'),
+        cntMinus = $('#cntMinus'), cntPlus = $('#cntPlus'), cntOut = $('#cntOut'),
+        lenMinus = $('#lenMinus'), lenPlus = $('#lenPlus'), lenOut = $('#lenOut');
 
   const ICON = {
     fwd:  '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M7.5 4.5v15L20 12z" fill="currentColor"/></svg>',
@@ -275,7 +316,7 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
   const C = {};
   function readColors() {
     const cs = getComputedStyle(document.documentElement);
-    for (const k of ['ink', 'muted', 'line', 'accent', 'rec']) C[k] = cs.getPropertyValue('--' + k).trim();
+    for (const k of ['ink', 'muted', 'line', 'accent', 'rec', 'f-mono']) C[k] = cs.getPropertyValue('--' + k).trim();
   }
   readColors();
   const mq = matchMedia('(prefers-color-scheme: dark)');
@@ -283,8 +324,16 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
   if (mq.addEventListener) mq.addEventListener('change', onTheme); else if (mq.addListener) mq.addListener(onTheme);
 
   // ---------- state ----------
-  const state = { parts: [], nextId: 1, original: null, reversed: null, bounds: [], recording: false, playing: null };
-  const task = { buf: null, len: 2, segs: [] }; // len: seconds per task part
+  // Each task keeps its own cuts and its own recorded parts.
+  const tasks = TASKS.map((t) => ({
+    url: t.url, title: t.title, buf: null, status: 'loading', err: null,
+    cuts: [], mode: 'len', len: LEN_DEFAULT,
+    session: { parts: [], nextId: 1 }
+  }));
+  let cur = 0;
+  const T = () => tasks[cur];
+  const S = () => tasks[cur].session;
+  const state = { original: null, reversed: null, bounds: [], recording: false, playing: null };
 
   const say = (text, kind) => { msg.textContent = text || ''; msg.dataset.kind = kind || ''; };
   const fmt = (t) => {
@@ -293,6 +342,7 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
     const s = (t - m * 60).toFixed(1);
     return m + ':' + (parseFloat(s) < 10 ? '0' : '') + s;
   };
+  const secLabel = (v) => v.toFixed(1).replace('.', ',').replace(/,0$/, '') + ' с';
   const plural = (n, one, few, many) => {
     const a = n % 10, b = n % 100;
     if (a === 1 && b !== 11) return one;
@@ -301,7 +351,7 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
   };
   const partsWord = (n) => n + ' ' + plural(n, 'часть', 'части', 'частей');
   const stamp = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0'); };
-  const totalDur = () => state.parts.reduce((s, p) => s + p.buf.duration, 0);
+  const totalDur = () => S().parts.reduce((s, p) => s + p.buf.duration, 0);
 
   // ---------- canvas helpers ----------
   function fit(cv) {
@@ -314,125 +364,225 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
     return { g, w, h };
   }
 
+  // ================= TABS =================
+  function renderTabs() {
+    tabsEl.innerHTML = '';
+    tabsEl.hidden = tasks.length < 2;
+    tasks.forEach((t, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tab';
+      b.id = 'tab' + i;
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-controls', 'workspace');
+      b.textContent = t.title;
+      tabsEl.appendChild(b);
+    });
+    syncTabs();
+  }
+  function syncTabs() {
+    tabsEl.querySelectorAll('.tab').forEach((b, i) => {
+      b.setAttribute('aria-selected', String(i === cur));
+      b.tabIndex = i === cur ? 0 : -1;
+    });
+    $('#workspace').setAttribute('aria-labelledby', 'tab' + cur);
+  }
+  function switchTask(i) {
+    if (i === cur || i < 0 || i >= tasks.length || state.recording || busy || starting) return;
+    stopPlay();
+    say('');
+    cur = i;
+    syncTabs();
+    renderTaskBlock();
+    rebuild();
+  }
+
   // ================= TASK =================
-  // Task is cut into equal pieces of task.len seconds; a tail shorter than 0.5 s joins the previous piece.
-  const SEG_DEFAULT = 2, SEG_MIN = 1, SEG_MAX = 5, SEG_STEP = 0.5;
-  function splitTask(dur, len) {
-    const segs = [];
-    for (let s = 0; s < dur - 1e-6; s += len) segs.push({ start: s, end: Math.min(dur, s + len) });
-    if (segs.length > 1) {
-      const last = segs[segs.length - 1];
-      if (last.end - last.start < 0.5) { segs.pop(); segs[segs.length - 1].end = last.end; }
+  const lenCuts = (dur, L) => {
+    const c = [];
+    for (let k = 1; k * L < dur - 1e-6; k++) c.push(k * L);
+    if (c.length && dur - c[c.length - 1] < 0.5) c.pop(); // short tail joins the previous part
+    return c;
+  };
+  const countCuts = (dur, n) => Array.from({ length: Math.max(0, n - 1) }, (_, k) => (dur * (k + 1)) / n);
+  const segsOf = (t) => {
+    if (!t.buf) return [];
+    const p = [0, ...t.cuts, t.buf.duration];
+    return p.slice(0, -1).map((start, i) => ({ start, end: p[i + 1] }));
+  };
+  const maxCount = (t) => (t.buf ? Math.max(1, Math.min(COUNT_MAX, Math.floor(t.buf.duration / MIN_PIECE))) : 1);
+  const lenBase = (t) => (t.mode === 'len' ? t.len : Math.max(LEN_MIN, Math.round(t.buf.duration / (t.cuts.length + 1) / LEN_STEP) * LEN_STEP));
+  const stopTaskPlay = () => { if (state.playing && state.playing.key.startsWith('task')) stopPlay(); };
+
+  function readyTask(t, buf) {
+    if (t === T()) stopTaskPlay();
+    t.buf = buf; t.status = 'ready'; t.err = null;
+    t.mode = 'len'; t.len = LEN_DEFAULT;
+    t.cuts = lenCuts(buf.duration, t.len);
+    if (t === T()) renderTaskBlock();
+  }
+  function failTask(t, kind) {
+    t.status = 'error'; t.err = kind;
+    if (t === T()) renderTaskBlock();
+  }
+  async function loadTask(t) {
+    let ab;
+    try {
+      const r = await fetch(t.url, { cache: 'no-cache' });
+      if (!r.ok) { failTask(t, 'missing'); return; }
+      ab = await r.arrayBuffer();
+    } catch (_) {
+      failTask(t, location.protocol === 'file:' ? 'file' : 'missing');
+      return;
     }
-    return segs;
-  }
-  const secLabel = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1).replace('.', ',')) + ' с';
-
-  function setTask(buf) {
-    if (state.playing && state.playing.key.startsWith('task')) stopPlay();
-    task.buf = buf;
-    task.segs = splitTask(buf.duration, task.len);
-    taskNote.hidden = true;
-    taskBody.hidden = false;
-    renderTask();
+    try { readyTask(t, await decode(ab)); } catch (_) { failTask(t, 'decode'); }
   }
 
-  function setSegLen(len) {
-    len = Math.max(SEG_MIN, Math.min(SEG_MAX, Math.round(len / SEG_STEP) * SEG_STEP));
-    if (len === task.len) return;
-    if (state.playing && state.playing.key.startsWith('task')) stopPlay();
-    task.len = len;
-    if (task.buf) { task.segs = splitTask(task.buf.duration, len); renderTask(); }
-    else updateStepper();
+  function taskErrorText(t) {
+    if (t.err === 'file') return 'Страница открыта прямо с диска, и браузер не даёт ей самой прочитать соседний файл ' + t.url + '. Выбери его вручную или открой страницу через сервер.';
+    if (t.err === 'decode') return 'Не получилось прочитать ' + t.url + '. Нужен обычный WAV или MP3.';
+    return 'Не нашёл ' + t.url + ' рядом со страницей. Положи файл в ту же папку и обнови страницу или выбери его вручную.';
   }
 
-  function renderTask() {
-    if (!task.buf) return;
-    taskMeta.textContent = fmt(task.buf.duration);
+  function renderTaskBlock() {
+    const t = T();
+    if (t.status === 'ready') {
+      taskNote.hidden = true;
+      taskBody.hidden = false;
+      taskMeta.textContent = fmt(t.buf.duration);
+      renderSegs();
+    } else {
+      taskBody.hidden = true;
+      taskMeta.textContent = '';
+      taskNote.hidden = false;
+      taskNote.dataset.kind = t.status === 'error' ? 'error' : '';
+      taskNoteText.textContent = t.status === 'error' ? taskErrorText(t) : 'Загружаю ' + t.url + '…';
+      taskPick.hidden = t.status !== 'error';
+    }
+  }
+
+  function renderSegs() {
+    const t = T(), segs = segsOf(t);
     segsEl.innerHTML = '';
-    task.segs.forEach((s, i) => {
+    segs.forEach((s, i) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'seg';
       b.dataset.key = 'task:' + i;
-      b.innerHTML = ICON.fwd + '<span>' + (i + 1) + '</span><span class="d">' + fmt(s.end - s.start) + '</span>';
+      b.innerHTML = ICON.fwd + '<span>' + (i + 1) + '</span><span class="d"></span>';
       segsEl.appendChild(b);
     });
+    cutsEl.innerHTML = '';
+    t.cuts.forEach((c, i) => {
+      const h = document.createElement('button');
+      h.type = 'button';
+      h.className = 'cut';
+      h.dataset.i = i;
+      h.setAttribute('role', 'slider');
+      h.setAttribute('aria-label', 'Граница между частями ' + (i + 1) + ' и ' + (i + 2));
+      cutsEl.appendChild(h);
+    });
     syncPlayUI();
-    updateStepper();
+    updateSegView();
+    setRecUI();
+  }
+
+  function updateSegView() {
+    const t = T();
+    if (!t.buf) return;
+    const dur = t.buf.duration, segs = segsOf(t);
+    segsEl.querySelectorAll('.seg').forEach((b, i) => {
+      const s = segs[i];
+      if (s) b.querySelector('.d').textContent = secLabel(s.end - s.start);
+    });
+    cutsEl.querySelectorAll('.cut').forEach((h, i) => {
+      const c = t.cuts[i];
+      h.style.left = (c / dur) * 100 + '%';
+      h.setAttribute('aria-valuemin', '0');
+      h.setAttribute('aria-valuemax', dur.toFixed(2));
+      h.setAttribute('aria-valuenow', c.toFixed(2));
+      h.setAttribute('aria-valuetext', fmt(c));
+    });
+    cntOut.textContent = String(segs.length);
+    lenOut.textContent = t.mode === 'len' ? secLabel(t.len) : t.mode === 'count' ? '≈ ' + secLabel(dur / segs.length) : 'разная';
+    updateSteppers();
     wavesFor('task').forEach(drawWave);
     updateTimes('task');
   }
 
-  function updateStepper() {
-    segLen.textContent = secLabel(task.len);
-    segMinus.disabled = state.recording || task.len <= SEG_MIN;
-    segPlus.disabled = state.recording || task.len >= SEG_MAX;
+  function updateSteppers() {
+    const t = T(), lock = state.recording || !t.buf, n = t.cuts.length + 1;
+    cntMinus.disabled = lock || n <= 1;
+    cntPlus.disabled = lock || n >= maxCount(t);
+    lenMinus.disabled = lock || (t.mode === 'len' && t.len <= LEN_MIN);
+    lenPlus.disabled = lock || (t.mode === 'len' && t.len >= LEN_MAX);
   }
 
-  function taskError(kind) {
-    const texts = {
-      file: 'Страница открыта прямо с диска, и браузер не даёт ей самой прочитать соседний файл ' + TASK_URL + '. Выбери его вручную или открой страницу через сервер.',
-      missing: 'Не нашёл ' + TASK_URL + ' рядом со страницей. Положи файл в ту же папку и обнови страницу или выбери его вручную.',
-      decode: 'Не получилось прочитать ' + TASK_URL + '. Нужен обычный WAV или MP3.'
-    };
-    taskNote.hidden = false;
-    taskNote.dataset.kind = 'error';
-    taskNoteText.textContent = texts[kind] || texts.missing;
-    taskPick.hidden = false;
+  function setCount(n) {
+    const t = T();
+    if (!t.buf) return;
+    n = Math.max(1, Math.min(maxCount(t), n));
+    stopTaskPlay();
+    t.mode = 'count';
+    t.cuts = countCuts(t.buf.duration, n);
+    renderSegs();
   }
-
-  async function loadTask() {
-    taskNoteText.textContent = 'Загружаю ' + TASK_URL + '…';
-    let ab;
-    try {
-      const r = await fetch(TASK_URL, { cache: 'no-cache' });
-      if (!r.ok) { taskError('missing'); return; }
-      ab = await r.arrayBuffer();
-    } catch (_) {
-      taskError(location.protocol === 'file:' ? 'file' : 'missing');
-      return;
-    }
-    try { setTask(await decode(ab)); } catch (_) { taskError('decode'); }
+  function setLen(L) {
+    const t = T();
+    if (!t.buf) return;
+    L = Math.max(LEN_MIN, Math.min(LEN_MAX, Math.round(L / LEN_STEP) * LEN_STEP));
+    stopTaskPlay();
+    t.mode = 'len';
+    t.len = L;
+    t.cuts = lenCuts(t.buf.duration, L);
+    renderSegs();
+  }
+  function moveCut(i, tm) {
+    const t = T(), dur = t.buf.duration;
+    const lo = (i ? t.cuts[i - 1] : 0) + MIN_PIECE;
+    const hi = (i < t.cuts.length - 1 ? t.cuts[i + 1] : dur) - MIN_PIECE;
+    t.cuts[i] = Math.max(lo, Math.min(hi, tm));
+    t.mode = 'custom';
+    updateSegView();
   }
 
   function drawTask(cv) {
-    const buf = task.buf;
+    const t = T(), buf = t.buf;
     const { g, w, h } = fit(cv);
     if (!buf) return;
-    const dur = buf.duration, top = 16, bh = h - top;
+    const dur = buf.duration, top = 16, bh = h - top, segs = segsOf(t);
     const bw = 2, gap = 1, n = Math.max(1, Math.floor(w / (bw + gap)));
     const p = peaksFor(buf, n);
     const pl = state.playing && state.playing.key.startsWith('task') ? state.playing : null;
-    const cur = pl ? pos() : 0;
-    const seg = pl && pl.key !== 'task' ? task.segs[Number(pl.key.slice(5))] : null;
+    const curT = pl ? pos() : 0;
+    const seg = pl && pl.key !== 'task' ? segs[Number(pl.key.slice(5))] : null;
 
-    // part boundaries + numbers
-    g.font = '500 10px ' + getComputedStyle(document.body).getPropertyValue('--f-mono');
-    task.segs.forEach((s, i) => {
+    g.font = '500 10px ' + (C['f-mono'] || 'monospace');
+    segs.forEach((s, i) => {
       const x = Math.round((s.start / dur) * w), x2 = Math.round((s.end / dur) * w);
-      if (i > 0) { g.fillStyle = C.muted; g.globalAlpha = 0.6; g.fillRect(x, 0, 1, h); }
-      if (x2 - x >= 16) {
-        g.globalAlpha = seg && seg === s ? 1 : 0.8;
-        g.fillStyle = seg && seg === s ? C.ink : C.muted;
-        g.fillText(String(i + 1), x + 4, 11);
+      const lx = i ? x + 10 : x + 2;
+      if (x2 - lx >= 10) {
+        const on = seg === s;
+        g.globalAlpha = on ? 1 : 0.85;
+        g.fillStyle = on ? C.ink : C.muted;
+        g.fillText(String(i + 1), lx, 11);
       }
     });
 
     g.fillStyle = C.ink;
     for (let i = 0; i < n; i++) {
-      const x = i * (bw + gap), t = ((x + bw / 2) / w) * dur;
+      const x = i * (bw + gap), tt = ((x + bw / 2) / w) * dur;
       const hh = Math.max(1.5, Math.sqrt(p[i]) * (bh - 4));
       let a = 0.6;
       if (pl) {
-        if (seg) a = t >= seg.start && t < seg.end ? (t <= cur ? 1 : 0.4) : 0.14;
-        else a = t <= cur ? 1 : 0.3;
+        if (seg) a = tt >= seg.start && tt < seg.end ? (tt <= curT ? 1 : 0.4) : 0.14;
+        else a = tt <= curT ? 1 : 0.3;
       }
       g.globalAlpha = a;
       g.fillRect(x, top + (bh - hh) / 2, bw, hh);
     }
     g.globalAlpha = 1;
-    if (pl) g.fillRect(Math.round((cur / dur) * w) - 1, top, 2, bh);
+    if (pl) g.fillRect(Math.round((curT / dur) * w) - 1, top, 2, bh);
   }
 
   // ================= MIC + RECORDING =================
@@ -522,11 +672,12 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
   async function startRec() {
     if (state.recording || starting || busy) return;
     starting = true;
+    setRecUI();
     stopPlay();
     say('');
     const ok = await ensureMic();
     starting = false;
-    if (!ok) return;
+    if (!ok) { setRecUI(); return; }
 
     const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
     const mime = MediaRecorder.isTypeSupported ? types.find((t) => MediaRecorder.isTypeSupported(t)) : undefined;
@@ -571,30 +722,33 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
   const toggleRec = () => (state.recording ? stopRec() : startRec());
 
   function setRecUI() {
-    const next = state.parts.length + 1, mic = micOn();
+    const next = S().parts.length + 1, mic = micOn(), lock = state.recording;
     recBtn.classList.toggle('on', state.recording);
     recBtn.setAttribute('aria-pressed', String(state.recording));
     recBtn.setAttribute('aria-label', state.recording ? 'Остановить запись' : 'Записать часть ' + next);
     stateEl.textContent = state.recording ? 'запись · часть ' + next : (mic ? 'пауза · дальше часть ' : 'часть ') + next;
     stateEl.dataset.on = state.recording ? '1' : (mic ? 'mic' : '');
     micBtn.hidden = !mic || state.recording;
-    document.querySelectorAll('.play, .seg, .dl, .del').forEach((b) => { b.disabled = state.recording; });
-    fileBtn.disabled = state.recording;
-    clearBtn.disabled = state.recording;
-    taskPick.disabled = state.recording;
-    updateStepper();
+    document.querySelectorAll('.play, .seg, .dl, .del, .cut').forEach((b) => { b.disabled = lock; });
+    fileBtn.disabled = lock;
+    clearBtn.disabled = lock;
+    taskPick.disabled = lock;
+    tabsEl.querySelectorAll('.tab').forEach((b) => { b.disabled = lock || busy || starting; });
+    updateSteppers();
   }
 
   // ================= MY PARTS: glue + reverse =================
   function addPart(buf) {
     if (buf.duration < 0.15) { say('Часть слишком короткая, не добавил. Запиши хотя бы секунду.', 'error'); return false; }
-    state.parts.push({ id: state.nextId++, buf });
+    const s = S();
+    s.parts.push({ id: s.nextId++, buf });
     rebuild();
     return true;
   }
 
   function removePart(id) {
-    state.parts = state.parts.filter((p) => p.id !== id);
+    const s = S();
+    s.parts = s.parts.filter((p) => p.id !== id);
     rebuild();
   }
 
@@ -631,8 +785,9 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
   function rebuild() {
     const p = state.playing;
     if (p && (p.key === 'orig' || p.key === 'rev' || !bufOf(p.key))) stopPlay();
-    if (state.parts.length) {
-      const g = glue(state.parts);
+    const parts = S().parts;
+    if (parts.length) {
+      const g = glue(parts);
       state.original = g.buf;
       state.bounds = g.bounds;
       state.reversed = reverse(g.buf);
@@ -646,9 +801,9 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
   }
 
   function renderParts() {
-    const n = state.parts.length;
+    const parts = S().parts, n = parts.length;
     partsEl.innerHTML = '';
-    state.parts.forEach((p, i) => {
+    parts.forEach((p, i) => {
       const li = document.createElement('li');
       li.className = 'part';
       li.innerHTML =
@@ -669,7 +824,7 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
   }
 
   function renderResult() {
-    const n = state.parts.length;
+    const n = S().parts.length;
     resultEl.hidden = !n;
     const gen = (n % 10 === 1 && n % 100 !== 11) ? 'части' : 'частей';
     resultMeta.textContent = n ? (n === 1 ? 'одна часть' : 'склеено из ' + n + ' ' + gen) : '';
@@ -701,11 +856,11 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
   }
 
   function bufOf(key) {
-    if (key.startsWith('task')) return task.buf;
+    if (key.startsWith('task')) return T().buf;
     if (key === 'orig') return state.original;
     if (key === 'rev') return state.reversed;
     const id = Number(key.slice(1));
-    const part = state.parts.find((p) => p.id === id);
+    const part = S().parts.find((p) => p.id === id);
     return part ? part.buf : null;
   }
   const viewKey = (key) => (key.startsWith('task') ? 'task' : key);
@@ -775,7 +930,7 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
     if (!buf) return;
     let from, to;
     if (key.startsWith('task:')) {
-      const s = task.segs[Number(key.slice(5))];
+      const s = segsOf(T())[Number(key.slice(5))];
       if (!s) return;
       from = s.start; to = s.end;
     } else {
@@ -823,18 +978,18 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
     if (key === 'orig') return 'склеенную запись';
     if (key === 'rev') return 'запись наоборот';
     const id = Number(key.slice(1));
-    return 'мою часть ' + (state.parts.findIndex((p) => p.id === id) + 1);
+    return 'мою часть ' + (S().parts.findIndex((p) => p.id === id) + 1);
   }
 
   function syncPlayUI() {
-    const cur = state.playing ? state.playing.key : null;
+    const curKey = state.playing ? state.playing.key : null;
     document.querySelectorAll('.play').forEach((b) => {
-      const key = b.dataset.key, on = cur === key;
+      const key = b.dataset.key, on = curKey === key;
       b.innerHTML = on ? ICON.stop : (key === 'rev' ? ICON.rev : ICON.fwd);
       b.setAttribute('aria-label', (on ? 'Остановить ' : 'Слушать ') + playLabel(key));
     });
     document.querySelectorAll('.seg').forEach((b) => {
-      const key = b.dataset.key, on = cur === key;
+      const key = b.dataset.key, on = curKey === key;
       b.setAttribute('aria-pressed', String(on));
       b.setAttribute('aria-label', (on ? 'Остановить ' : 'Слушать ') + playLabel(key));
       const svg = b.querySelector('svg');
@@ -870,7 +1025,7 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
     const url = URL.createObjectURL(toWav(buf));
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'zapis-' + stamp() + (key === 'rev' ? '-naoborot' : '') + '.wav';
+    a.download = 'zadanie' + (cur + 1) + '-' + stamp() + (key === 'rev' ? '-naoborot' : '') + '.wav';
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -901,15 +1056,63 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
     addFiles(files);
   });
 
+  tabsEl.addEventListener('click', (e) => {
+    const b = e.target.closest('.tab');
+    if (b) switchTask([...tabsEl.children].indexOf(b));
+  });
+  tabsEl.addEventListener('keydown', (e) => {
+    const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    switchTask((cur + d + tasks.length) % tasks.length);
+    const b = tabsEl.children[cur];
+    if (b) b.focus();
+  });
+
   taskPick.addEventListener('click', () => { audio(); taskFile.click(); });
   taskFile.addEventListener('change', async () => {
     const f = taskFile.files && taskFile.files[0];
+    const t = T();
     taskFile.value = '';
     if (!f) return;
-    try { setTask(await decode(await f.arrayBuffer())); } catch (_) { taskError('decode'); }
+    try { readyTask(t, await decode(await f.arrayBuffer())); } catch (_) { failTask(t, 'decode'); }
   });
-  segMinus.addEventListener('click', () => setSegLen(task.len - SEG_STEP));
-  segPlus.addEventListener('click', () => setSegLen(task.len + SEG_STEP));
+
+  cntMinus.addEventListener('click', () => setCount(T().cuts.length));
+  cntPlus.addEventListener('click', () => setCount(T().cuts.length + 2));
+  lenMinus.addEventListener('click', () => setLen(lenBase(T()) - LEN_STEP));
+  lenPlus.addEventListener('click', () => setLen(lenBase(T()) + LEN_STEP));
+
+  // dragging part boundaries on the task waveform
+  let drag = null;
+  cutsEl.addEventListener('pointerdown', (e) => {
+    const h = e.target.closest('.cut');
+    if (!h || h.disabled) return;
+    e.preventDefault();
+    stopTaskPlay();
+    try { h.setPointerCapture(e.pointerId); } catch (_) {}
+    drag = { i: Number(h.dataset.i), h };
+    h.classList.add('drag');
+    h.focus({ preventScroll: true });
+  });
+  cutsEl.addEventListener('pointermove', (e) => {
+    if (!drag || !T().buf) return;
+    const r = taskWrap.getBoundingClientRect();
+    moveCut(drag.i, ((e.clientX - r.left) / r.width) * T().buf.duration);
+  });
+  const endDrag = () => { if (drag) { drag.h.classList.remove('drag'); drag = null; } };
+  cutsEl.addEventListener('pointerup', endDrag);
+  cutsEl.addEventListener('pointercancel', endDrag);
+  cutsEl.addEventListener('keydown', (e) => {
+    const h = e.target.closest('.cut');
+    if (!h || !T().buf) return;
+    const d = (e.key === 'ArrowLeft' || e.key === 'ArrowDown') ? -1 : (e.key === 'ArrowRight' || e.key === 'ArrowUp') ? 1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    stopTaskPlay();
+    const i = Number(h.dataset.i);
+    moveCut(i, T().cuts[i] + d * (e.shiftKey ? 0.25 : 0.05));
+  });
 
   let clearTimer = 0;
   clearBtn.addEventListener('click', () => {
@@ -922,7 +1125,7 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
     clearTimeout(clearTimer); clearTimer = 0;
     clearBtn.textContent = 'Очистить'; clearBtn.classList.remove('armed');
     stopPlay();
-    state.parts = [];
+    S().parts = [];
     say('');
     rebuild();
   });
@@ -978,11 +1181,11 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
     document.querySelectorAll('canvas.wave').forEach((cv) => ro.observe(cv));
   }
 
-  observeCanvases();
-  syncPlayUI();
-  setRecUI();
+  renderTabs();
+  renderTaskBlock();
+  rebuild();
   drawLive();
-  loadTask();
+  tasks.forEach(loadTask);
 })();
 </script>
 </body>
