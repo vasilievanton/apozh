@@ -167,11 +167,11 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
       <div class="segs-row">
         <span class="segs-label">По частям</span>
         <div id="segs" class="segs"></div>
-        <div class="stepper" role="group" aria-label="Сколько частей в задании">
-          <span>частей</span>
-          <button id="segMinus" type="button" aria-label="Меньше частей">−</button>
-          <output id="segCount">1</output>
-          <button id="segPlus" type="button" aria-label="Больше частей">+</button>
+        <div class="stepper" role="group" aria-label="Длина части задания">
+          <span>по</span>
+          <button id="segMinus" type="button" aria-label="Части короче">−</button>
+          <output id="segLen">2 с</output>
+          <button id="segPlus" type="button" aria-label="Части длиннее">+</button>
         </div>
       </div>
     </div>
@@ -233,7 +233,7 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
   </section>
 
   <footer>
-    <p>Задание берётся из файла <code>zadanie.wav</code>, который лежит в той же папке, что и страница. Части задания нарезаются по паузам, кнопками − и + меняется их количество.</p>
+    <p>Задание берётся из файла <code>zadanie.wav</code>, который лежит в той же папке, что и страница. Задание режется на части по 2 секунды, кнопками − и + длина части меняется от 1 до 5 секунд.</p>
     <p>Клик по волне запускает дорожку с этого места. Риски на волнах показывают стыки частей. Разрешение на микрофон спрашивается один раз: в паузе между частями ничего не сохраняется, на шкале это серые полоски, в часть попадают только красные.</p>
     <p>Если микрофон не включается, открой страницу в Chrome, Edge или Firefox и разреши доступ к микрофону (значок слева от адресной строки).</p>
   </footer>
@@ -251,7 +251,7 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
         resultEl = $('#result'), resultMeta = $('#resultMeta'),
         taskNote = $('#taskNote'), taskNoteText = $('#taskNoteText'), taskPick = $('#taskPick'), taskFile = $('#taskFile'),
         taskBody = $('#taskBody'), taskMeta = $('#taskMeta'), segsEl = $('#segs'),
-        segMinus = $('#segMinus'), segPlus = $('#segPlus'), segCount = $('#segCount');
+        segMinus = $('#segMinus'), segPlus = $('#segPlus'), segLen = $('#segLen');
 
   const ICON = {
     fwd:  '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M7.5 4.5v15L20 12z" fill="currentColor"/></svg>',
@@ -284,7 +284,7 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
 
   // ---------- state ----------
   const state = { parts: [], nextId: 1, original: null, reversed: null, bounds: [], recording: false, playing: null };
-  const task = { buf: null, an: null, n: 1, segs: [] };
+  const task = { buf: null, len: 2, segs: [] }; // len: seconds per task part
 
   const say = (text, kind) => { msg.textContent = text || ''; msg.dataset.kind = kind || ''; };
   const fmt = (t) => {
@@ -315,92 +315,35 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
   }
 
   // ================= TASK =================
-  function analyzeTask(buf) {
-    const sr = buf.sampleRate, hop = Math.max(1, Math.round(sr * 0.01)); // 10 ms frames
-    const ch = buf.numberOfChannels, d = [];
-    for (let c = 0; c < ch; c++) d.push(buf.getChannelData(c));
-    const nF = Math.max(1, Math.floor(buf.length / hop));
-    const env = new Float32Array(nF);
-    for (let f = 0; f < nF; f++) {
-      const a = f * hop, b = Math.min(buf.length, a + hop);
-      let s = 0;
-      for (let i = a; i < b; i++) {
-        let v = 0;
-        for (let c = 0; c < ch; c++) v += d[c][i];
-        v /= ch; s += v * v;
-      }
-      env[f] = Math.sqrt(s / Math.max(1, b - a));
+  // Task is cut into equal pieces of task.len seconds; a tail shorter than 0.5 s joins the previous piece.
+  const SEG_DEFAULT = 2, SEG_MIN = 1, SEG_MAX = 5, SEG_STEP = 0.5;
+  function splitTask(dur, len) {
+    const segs = [];
+    for (let s = 0; s < dur - 1e-6; s += len) segs.push({ start: s, end: Math.min(dur, s + len) });
+    if (segs.length > 1) {
+      const last = segs[segs.length - 1];
+      if (last.end - last.start < 0.5) { segs.pop(); segs[segs.length - 1].end = last.end; }
     }
-    const sm = new Float32Array(nF);
-    let max = 0;
-    for (let f = 0; f < nF; f++) {
-      let s = 0, k = 0;
-      for (let j = Math.max(0, f - 2); j <= Math.min(nF - 1, f + 2); j++) { s += env[j]; k++; }
-      sm[f] = s / k; if (sm[f] > max) max = sm[f];
-    }
-    if (max > 0) for (let f = 0; f < nF; f++) sm[f] /= max;
-    const sorted = Float32Array.from(sm).sort();
-    const thr = Math.min(0.25, Math.max(0.05, sorted[Math.floor(nF * 0.1)] * 3));
-    const runs = [];
-    let s = -1;
-    for (let f = 0; f <= nF; f++) {
-      const quiet = f < nF && sm[f] < thr;
-      if (quiet && s < 0) s = f;
-      else if (!quiet && s >= 0) {
-        if (s > 0 && f < nF && f - s >= 12) runs.push({ s, e: f, len: f - s, c: Math.round((s + f) / 2) });
-        s = -1;
-      }
-    }
-    return { env: sm, hop, sr, nF, runs, dur: buf.duration };
+    return segs;
   }
-
-  const MIN_SEG = 35; // frames = 0.35 s
-  const maxSegs = (an) => Math.max(1, Math.min(12, Math.floor(an.nF / MIN_SEG)));
-  const defaultSegs = (an) => Math.max(1, Math.min(maxSegs(an), 6, an.runs.filter((r) => r.len >= 25).length + 1));
-
-  function splitTask(an, n) {
-    const cuts = [];
-    const fits = (c) => c >= MIN_SEG && c <= an.nF - MIN_SEG && cuts.every((x) => Math.abs(x - c) >= MIN_SEG);
-    // longest pauses first
-    for (const r of [...an.runs].sort((a, b) => b.len - a.len)) {
-      if (cuts.length >= n - 1) break;
-      if (fits(r.c)) cuts.push(r.c);
-    }
-    // not enough pauses: split the longest piece at its quietest moment
-    while (cuts.length < n - 1) {
-      const b = [0, ...cuts.slice().sort((x, y) => x - y), an.nF];
-      let bi = -1, bl = 0;
-      for (let i = 0; i < b.length - 1; i++) { const L = b[i + 1] - b[i]; if (L > bl) { bl = L; bi = i; } }
-      if (bl < 2 * MIN_SEG) break;
-      const s = b[bi] + Math.floor(bl * 0.25), e = b[bi + 1] - Math.floor(bl * 0.25);
-      let m = s;
-      for (let f = s; f < e; f++) if (an.env[f] < an.env[m]) m = f;
-      cuts.push(m);
-    }
-    cuts.sort((x, y) => x - y);
-    const pts = [0, ...cuts.map((f) => Math.min(an.dur, (f * an.hop) / an.sr)), an.dur];
-    return pts.slice(0, -1).map((start, i) => ({ start, end: pts[i + 1] }));
-  }
+  const secLabel = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1).replace('.', ',')) + ' с';
 
   function setTask(buf) {
     if (state.playing && state.playing.key.startsWith('task')) stopPlay();
     task.buf = buf;
-    task.an = analyzeTask(buf);
-    task.n = defaultSegs(task.an);
-    task.segs = splitTask(task.an, task.n);
+    task.segs = splitTask(buf.duration, task.len);
     taskNote.hidden = true;
     taskBody.hidden = false;
     renderTask();
   }
 
-  function setSegCount(n) {
-    if (!task.an) return;
-    n = Math.max(1, Math.min(maxSegs(task.an), n));
-    if (n === task.n) return;
+  function setSegLen(len) {
+    len = Math.max(SEG_MIN, Math.min(SEG_MAX, Math.round(len / SEG_STEP) * SEG_STEP));
+    if (len === task.len) return;
     if (state.playing && state.playing.key.startsWith('task')) stopPlay();
-    task.n = n;
-    task.segs = splitTask(task.an, n);
-    renderTask();
+    task.len = len;
+    if (task.buf) { task.segs = splitTask(task.buf.duration, len); renderTask(); }
+    else updateStepper();
   }
 
   function renderTask() {
@@ -415,7 +358,6 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
       b.innerHTML = ICON.fwd + '<span>' + (i + 1) + '</span><span class="d">' + fmt(s.end - s.start) + '</span>';
       segsEl.appendChild(b);
     });
-    segCount.textContent = String(task.segs.length);
     syncPlayUI();
     updateStepper();
     wavesFor('task').forEach(drawWave);
@@ -423,9 +365,9 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
   }
 
   function updateStepper() {
-    const max = task.an ? maxSegs(task.an) : 1;
-    segMinus.disabled = state.recording || task.n <= 1;
-    segPlus.disabled = state.recording || task.n >= max;
+    segLen.textContent = secLabel(task.len);
+    segMinus.disabled = state.recording || task.len <= SEG_MIN;
+    segPlus.disabled = state.recording || task.len >= SEG_MAX;
   }
 
   function taskError(kind) {
@@ -966,8 +908,8 @@ code{font:500 12px/1 var(--f-mono);color:var(--ink)}
     if (!f) return;
     try { setTask(await decode(await f.arrayBuffer())); } catch (_) { taskError('decode'); }
   });
-  segMinus.addEventListener('click', () => setSegCount(task.n - 1));
-  segPlus.addEventListener('click', () => setSegCount(task.n + 1));
+  segMinus.addEventListener('click', () => setSegLen(task.len - SEG_STEP));
+  segPlus.addEventListener('click', () => setSegLen(task.len + SEG_STEP));
 
   let clearTimer = 0;
   clearBtn.addEventListener('click', () => {
