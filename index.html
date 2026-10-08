@@ -1,0 +1,1047 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Наоборот</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Unbounded:wght@700;800&display=swap">
+<style>
+/* Layout: one narrow column — title, task (reversed WAV: whole + by parts), recorder deck (the only card), recorded parts, glued result */
+:root{
+  --bg:#EDEFF3; --surface:#F9FAFC; --ink:#151A26; --muted:#5D6474; --line:#D5DAE2;
+  --accent:#2C38C9; --rec:#E0352B;
+  --f-display:"Unbounded","Arial Black",system-ui,sans-serif;
+  --f-body:"Golos Text",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--bg:#11141B;--surface:#1A1E28;--ink:#E8EBF2;--muted:#959CAB;--line:#2B3140;--accent:#8E97FF;--rec:#FF5B4F;color-scheme:dark}
+}
+:root[data-theme="dark"]{--bg:#11141B;--surface:#1A1E28;--ink:#E8EBF2;--muted:#959CAB;--line:#2B3140;--accent:#8E97FF;--rec:#FF5B4F;color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--f-body);padding-inline:16px;padding-block:40px 56px;min-height:100vh}
+.wrap{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:32px}
+
+header h1{font:800 clamp(40px,10vw,76px)/.95 var(--f-display);letter-spacing:-.02em;margin:0}
+.backwards{display:block;margin-top:12px;font:500 13px/1 var(--f-mono);letter-spacing:.14em;color:var(--accent)}
+.sub{color:var(--muted);max-width:56ch;margin:14px 0 0}
+
+/* sections */
+.block{display:flex;flex-direction:column;gap:10px}
+.block-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px 16px;flex-wrap:wrap}
+.block-head h2{font:700 13px/1 var(--f-display);letter-spacing:.08em;text-transform:uppercase;margin:0}
+.meta{font:400 13px/1 var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.head-right{display:flex;align-items:baseline;gap:16px}
+.empty{margin:0;max-width:58ch;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+
+/* task */
+.task-note{border-top:1px solid var(--line);padding-top:16px;display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+.task-note p{margin:0;max-width:58ch;color:var(--muted)}
+.task-note[data-kind="error"] p{color:var(--rec)}
+.btn{font:500 14px/1 var(--f-body);color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:999px;padding:11px 16px;cursor:pointer}
+.btn:hover{border-color:var(--ink)}
+.task-row{display:grid;grid-template-columns:52px minmax(0,1fr);gap:12px 16px;align-items:center;padding-block:18px;border-top:1px solid var(--line)}
+.task-row .wave{height:76px}
+.segs-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding-block:14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.segs-label{font-size:14px;font-weight:600}
+.segs{display:flex;flex-wrap:wrap;gap:8px;flex:1;min-width:0}
+.seg{display:inline-flex;align-items:center;gap:8px;font:500 13px/1 var(--f-mono);font-variant-numeric:tabular-nums;color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:999px;padding:8px 12px 8px 10px;cursor:pointer}
+.seg:hover{border-color:var(--ink)}
+.seg svg{width:12px;height:12px;flex:none}
+.seg .d{color:var(--muted)}
+.seg[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.seg[aria-pressed="true"] .d{color:inherit;opacity:.7}
+.stepper{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
+.stepper button{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--ink);font:500 16px/1 var(--f-mono);cursor:pointer}
+.stepper button:hover{border-color:var(--ink)}
+.stepper output{font:500 14px/1 var(--f-mono);color:var(--ink);min-width:2ch;text-align:center}
+
+/* recorder deck */
+.deck{display:flex;gap:24px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:24px}
+.deck.drag{outline:2px dashed var(--accent);outline-offset:4px}
+.rec{flex:none;position:relative;width:96px;height:96px;border-radius:50%;border:2px solid var(--line);background:var(--bg);display:grid;place-items:center;cursor:pointer;transition:transform .15s}
+.rec:hover{transform:scale(1.03)}
+.rec:active{transform:scale(.97)}
+.rec-dot{width:44px;height:44px;border-radius:50%;background:var(--rec);transition:width .2s,height .2s,border-radius .2s}
+.rec.on .rec-dot{width:30px;height:30px;border-radius:6px}
+.rec.on::after{content:"";position:absolute;inset:-8px;border-radius:50%;border:2px solid var(--rec);animation:pulse 1.4s ease-out infinite}
+@keyframes pulse{from{opacity:.8;transform:scale(.92)}to{opacity:0;transform:scale(1.15)}}
+.deck-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
+.deck-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.timer{font:500 32px/1 var(--f-mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.chip{font:500 11px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted);padding:7px 10px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+.chip[data-on="1"]{color:var(--rec);border-color:var(--rec)}
+.chip[data-on="mic"]{color:var(--accent);border-color:var(--accent)}
+.live{width:100%;height:56px;display:block}
+.deck-foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 16px;font-size:14px;color:var(--muted)}
+kbd{font:500 12px/1.4 var(--f-mono);color:var(--ink);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:0 6px}
+.linkbtn{background:none;border:0;padding:0;font:inherit;color:var(--accent);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.linkbtn.mic-off{color:var(--muted)}
+.linkbtn.mic-off:hover{color:var(--rec)}
+
+.msg{margin:-16px 0 0;font-size:15px;color:var(--muted)}
+.msg:empty{display:none}
+.msg[data-kind="error"]{color:var(--rec)}
+
+/* recorded parts */
+.clear{background:none;border:0;padding:0;font:500 13px/1 var(--f-body);color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.clear:hover,.clear.armed{color:var(--rec)}
+.parts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.part{display:grid;grid-template-columns:22px 40px minmax(0,1fr) auto 36px;gap:12px;align-items:center;padding-block:10px;border-top:1px solid var(--line)}
+.part:last-child{border-bottom:1px solid var(--line)}
+.pnum{font:500 13px/1 var(--f-mono);color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.part .wave{height:36px}
+.del{width:36px;height:36px;border-radius:50%;border:0;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.del:hover{color:var(--rec)}
+
+/* playback buttons */
+.play{width:52px;height:52px;border-radius:50%;border:0;background:var(--ink);color:var(--bg);display:grid;place-items:center;cursor:pointer}
+.play.small{width:40px;height:40px;background:transparent;color:var(--ink);border:1px solid var(--line)}
+.play.small:hover{border-color:var(--ink)}
+.track.rev .play{background:var(--accent);color:var(--surface)}
+
+/* result tracks */
+.tracks{display:flex;flex-direction:column}
+.track{display:grid;grid-template-columns:52px minmax(0,1fr) auto;grid-template-areas:"play body dl";gap:12px 16px;align-items:center;padding-block:18px;border-top:1px solid var(--line)}
+.track:last-child{border-bottom:1px solid var(--line)}
+.track .play{grid-area:play}
+.track-body{grid-area:body;min-width:0;display:flex;flex-direction:column;gap:6px}
+.track-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.label{font-weight:600;font-size:15px}
+.track.rev .label{color:var(--accent)}
+.time{font:400 13px/1 var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.wave{width:100%;height:64px;display:block;cursor:pointer}
+.dl{grid-area:dl;font:500 14px/1 var(--f-body);color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:999px;padding:11px 16px;cursor:pointer;white-space:nowrap}
+.dl:hover{border-color:var(--ink)}
+
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+footer{font-size:13px;color:var(--muted);max-width:62ch}
+footer p{margin:0 0 6px}
+code{font:500 12px/1 var(--f-mono);color:var(--ink)}
+
+@media (max-width:540px){
+  .deck{flex-direction:column;align-items:stretch;padding:20px}
+  .rec{align-self:center}
+  .part{grid-template-columns:18px 40px minmax(0,1fr) auto 32px;gap:10px}
+  .track{grid-template-columns:52px minmax(0,1fr);grid-template-areas:"play body" ". dl"}
+  .dl{justify-self:start}
+}
+@media (prefers-reduced-motion:reduce){
+  .rec,.rec-dot{transition:none}
+  .rec.on::after{animation:none;opacity:.6}
+}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <h1>Наоборот</h1>
+    <span class="backwards" aria-hidden="true">← ТОРОБОАН</span>
+    <p class="sub">Сверху задание: перевёрнутая запись, её можно слушать целиком и по частям. Ниже записывай свой голос по частям: части склеятся в одну дорожку, и она перевернётся. Всё считается в браузере, запись никуда не отправляется.</p>
+  </header>
+
+  <section class="block" aria-labelledby="taskTitle">
+    <div class="block-head">
+      <h2 id="taskTitle">Задание</h2>
+      <span id="taskMeta" class="meta"></span>
+    </div>
+    <div id="taskNote" class="task-note">
+      <p id="taskNoteText">Загружаю задание…</p>
+      <button id="taskPick" class="btn" type="button" hidden>Выбрать файл задания</button>
+      <input id="taskFile" type="file" accept="audio/*" hidden>
+    </div>
+    <div id="taskBody" hidden>
+      <div class="task-row">
+        <button class="play" type="button" data-key="task"></button>
+        <div class="track-body">
+          <div class="track-head"><span class="label">Целиком</span><span class="time" data-time="task"></span></div>
+          <canvas class="wave" data-key="task" aria-hidden="true"></canvas>
+        </div>
+      </div>
+      <div class="segs-row">
+        <span class="segs-label">По частям</span>
+        <div id="segs" class="segs"></div>
+        <div class="stepper" role="group" aria-label="Сколько частей в задании">
+          <span>частей</span>
+          <button id="segMinus" type="button" aria-label="Меньше частей">−</button>
+          <output id="segCount">1</output>
+          <button id="segPlus" type="button" aria-label="Больше частей">+</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="deck" id="deck" aria-label="Запись">
+    <button id="rec" class="rec" type="button" aria-label="Записать часть 1" aria-pressed="false"><span class="rec-dot"></span></button>
+    <div class="deck-main">
+      <div class="deck-top">
+        <span id="timer" class="timer">0:00.0</span>
+        <span id="recState" class="chip">часть 1</span>
+      </div>
+      <canvas id="live" class="live" aria-hidden="true"></canvas>
+      <div class="deck-foot">
+        <span><kbd>Пробел</kbd> старт / стоп</span>
+        <button id="micBtn" class="linkbtn mic-off" type="button" hidden>Выключить микрофон</button>
+        <button id="fileBtn" class="linkbtn" type="button">или добавить аудиофайл</button>
+        <input id="file" type="file" accept="audio/*,video/*" multiple hidden>
+      </div>
+    </div>
+  </section>
+  <p id="msg" class="msg" role="status" aria-live="polite"></p>
+
+  <section class="block" aria-labelledby="partsTitle">
+    <div class="block-head">
+      <h2 id="partsTitle">Мои части</h2>
+      <div class="head-right">
+        <span id="partsMeta" class="meta"></span>
+        <button id="clearBtn" class="clear" type="button" hidden>Очистить</button>
+      </div>
+    </div>
+    <p id="partsEmpty" class="empty">Пока пусто. Нажми красную кнопку, скажи первую часть и останови запись. Потом так же запиши вторую, третью и сколько нужно. Каждая часть встанет в конец.</p>
+    <ol id="parts" class="parts" hidden></ol>
+  </section>
+
+  <section id="result" class="block" aria-labelledby="resultTitle" hidden>
+    <div class="block-head">
+      <h2 id="resultTitle">Результат</h2>
+      <span id="resultMeta" class="meta"></span>
+    </div>
+    <div class="tracks">
+      <div class="track">
+        <button class="play" type="button" data-key="orig"></button>
+        <div class="track-body">
+          <div class="track-head"><span class="label">Склеено</span><span class="time" data-time="orig"></span></div>
+          <canvas class="wave" data-key="orig" aria-hidden="true"></canvas>
+        </div>
+        <button class="dl" type="button" data-key="orig">Скачать WAV</button>
+      </div>
+      <div class="track rev">
+        <button class="play" type="button" data-key="rev"></button>
+        <div class="track-body">
+          <div class="track-head"><span class="label">Наоборот</span><span class="time" data-time="rev"></span></div>
+          <canvas class="wave" data-key="rev" aria-hidden="true"></canvas>
+        </div>
+        <button class="dl" type="button" data-key="rev">Скачать WAV</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>Задание берётся из файла <code>zadanie.wav</code>, который лежит в той же папке, что и страница. Части задания нарезаются по паузам, кнопками − и + меняется их количество.</p>
+    <p>Клик по волне запускает дорожку с этого места. Риски на волнах показывают стыки частей. Разрешение на микрофон спрашивается один раз: в паузе между частями ничего не сохраняется, на шкале это серые полоски, в часть попадают только красные.</p>
+    <p>Если микрофон не включается, открой страницу в Chrome, Edge или Firefox и разреши доступ к микрофону (значок слева от адресной строки).</p>
+  </footer>
+</main>
+
+<script>
+(() => {
+  // Task file: put it in the same folder as this page.
+  const TASK_URL = 'zadanie.wav';
+
+  const $ = (s) => document.querySelector(s);
+  const recBtn = $('#rec'), timerEl = $('#timer'), stateEl = $('#recState'), live = $('#live'),
+        msg = $('#msg'), fileInput = $('#file'), fileBtn = $('#fileBtn'), micBtn = $('#micBtn'), deck = $('#deck'),
+        partsEl = $('#parts'), partsEmpty = $('#partsEmpty'), partsMeta = $('#partsMeta'), clearBtn = $('#clearBtn'),
+        resultEl = $('#result'), resultMeta = $('#resultMeta'),
+        taskNote = $('#taskNote'), taskNoteText = $('#taskNoteText'), taskPick = $('#taskPick'), taskFile = $('#taskFile'),
+        taskBody = $('#taskBody'), taskMeta = $('#taskMeta'), segsEl = $('#segs'),
+        segMinus = $('#segMinus'), segPlus = $('#segPlus'), segCount = $('#segCount');
+
+  const ICON = {
+    fwd:  '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M7.5 4.5v15L20 12z" fill="currentColor"/></svg>',
+    rev:  '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M16.5 4.5v15L4 12z" fill="currentColor"/></svg>',
+    stop: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg>',
+    del:  '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+  };
+
+  // ---------- audio context ----------
+  let ac = null;
+  const audio = () => {
+    if (!ac) { const A = window.AudioContext || window.webkitAudioContext; ac = new A(); }
+    return ac;
+  };
+  const decode = (ab) => new Promise((res, rej) => {
+    const p = audio().decodeAudioData(ab, res, rej);
+    if (p && p.then) p.then(res, rej);
+  });
+
+  // ---------- colors from tokens ----------
+  const C = {};
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    for (const k of ['ink', 'muted', 'line', 'accent', 'rec']) C[k] = cs.getPropertyValue('--' + k).trim();
+  }
+  readColors();
+  const mq = matchMedia('(prefers-color-scheme: dark)');
+  const onTheme = () => { readColors(); drawLive(); drawAllWaves(); };
+  if (mq.addEventListener) mq.addEventListener('change', onTheme); else if (mq.addListener) mq.addListener(onTheme);
+
+  // ---------- state ----------
+  const state = { parts: [], nextId: 1, original: null, reversed: null, bounds: [], recording: false, playing: null };
+  const task = { buf: null, an: null, n: 1, segs: [] };
+
+  const say = (text, kind) => { msg.textContent = text || ''; msg.dataset.kind = kind || ''; };
+  const fmt = (t) => {
+    t = Math.max(0, t);
+    const m = Math.floor(t / 60);
+    const s = (t - m * 60).toFixed(1);
+    return m + ':' + (parseFloat(s) < 10 ? '0' : '') + s;
+  };
+  const plural = (n, one, few, many) => {
+    const a = n % 10, b = n % 100;
+    if (a === 1 && b !== 11) return one;
+    if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return few;
+    return many;
+  };
+  const partsWord = (n) => n + ' ' + plural(n, 'часть', 'части', 'частей');
+  const stamp = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0'); };
+  const totalDur = () => state.parts.reduce((s, p) => s + p.buf.duration, 0);
+
+  // ---------- canvas helpers ----------
+  function fit(cv) {
+    const d = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+    const W = Math.max(1, Math.round(w * d)), H = Math.max(1, Math.round(h * d));
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    const g = cv.getContext('2d');
+    g.setTransform(d, 0, 0, d, 0, 0);
+    g.clearRect(0, 0, w, h);
+    return { g, w, h };
+  }
+
+  // ================= TASK =================
+  function analyzeTask(buf) {
+    const sr = buf.sampleRate, hop = Math.max(1, Math.round(sr * 0.01)); // 10 ms frames
+    const ch = buf.numberOfChannels, d = [];
+    for (let c = 0; c < ch; c++) d.push(buf.getChannelData(c));
+    const nF = Math.max(1, Math.floor(buf.length / hop));
+    const env = new Float32Array(nF);
+    for (let f = 0; f < nF; f++) {
+      const a = f * hop, b = Math.min(buf.length, a + hop);
+      let s = 0;
+      for (let i = a; i < b; i++) {
+        let v = 0;
+        for (let c = 0; c < ch; c++) v += d[c][i];
+        v /= ch; s += v * v;
+      }
+      env[f] = Math.sqrt(s / Math.max(1, b - a));
+    }
+    const sm = new Float32Array(nF);
+    let max = 0;
+    for (let f = 0; f < nF; f++) {
+      let s = 0, k = 0;
+      for (let j = Math.max(0, f - 2); j <= Math.min(nF - 1, f + 2); j++) { s += env[j]; k++; }
+      sm[f] = s / k; if (sm[f] > max) max = sm[f];
+    }
+    if (max > 0) for (let f = 0; f < nF; f++) sm[f] /= max;
+    const sorted = Float32Array.from(sm).sort();
+    const thr = Math.min(0.25, Math.max(0.05, sorted[Math.floor(nF * 0.1)] * 3));
+    const runs = [];
+    let s = -1;
+    for (let f = 0; f <= nF; f++) {
+      const quiet = f < nF && sm[f] < thr;
+      if (quiet && s < 0) s = f;
+      else if (!quiet && s >= 0) {
+        if (s > 0 && f < nF && f - s >= 12) runs.push({ s, e: f, len: f - s, c: Math.round((s + f) / 2) });
+        s = -1;
+      }
+    }
+    return { env: sm, hop, sr, nF, runs, dur: buf.duration };
+  }
+
+  const MIN_SEG = 35; // frames = 0.35 s
+  const maxSegs = (an) => Math.max(1, Math.min(12, Math.floor(an.nF / MIN_SEG)));
+  const defaultSegs = (an) => Math.max(1, Math.min(maxSegs(an), 6, an.runs.filter((r) => r.len >= 25).length + 1));
+
+  function splitTask(an, n) {
+    const cuts = [];
+    const fits = (c) => c >= MIN_SEG && c <= an.nF - MIN_SEG && cuts.every((x) => Math.abs(x - c) >= MIN_SEG);
+    // longest pauses first
+    for (const r of [...an.runs].sort((a, b) => b.len - a.len)) {
+      if (cuts.length >= n - 1) break;
+      if (fits(r.c)) cuts.push(r.c);
+    }
+    // not enough pauses: split the longest piece at its quietest moment
+    while (cuts.length < n - 1) {
+      const b = [0, ...cuts.slice().sort((x, y) => x - y), an.nF];
+      let bi = -1, bl = 0;
+      for (let i = 0; i < b.length - 1; i++) { const L = b[i + 1] - b[i]; if (L > bl) { bl = L; bi = i; } }
+      if (bl < 2 * MIN_SEG) break;
+      const s = b[bi] + Math.floor(bl * 0.25), e = b[bi + 1] - Math.floor(bl * 0.25);
+      let m = s;
+      for (let f = s; f < e; f++) if (an.env[f] < an.env[m]) m = f;
+      cuts.push(m);
+    }
+    cuts.sort((x, y) => x - y);
+    const pts = [0, ...cuts.map((f) => Math.min(an.dur, (f * an.hop) / an.sr)), an.dur];
+    return pts.slice(0, -1).map((start, i) => ({ start, end: pts[i + 1] }));
+  }
+
+  function setTask(buf) {
+    if (state.playing && state.playing.key.startsWith('task')) stopPlay();
+    task.buf = buf;
+    task.an = analyzeTask(buf);
+    task.n = defaultSegs(task.an);
+    task.segs = splitTask(task.an, task.n);
+    taskNote.hidden = true;
+    taskBody.hidden = false;
+    renderTask();
+  }
+
+  function setSegCount(n) {
+    if (!task.an) return;
+    n = Math.max(1, Math.min(maxSegs(task.an), n));
+    if (n === task.n) return;
+    if (state.playing && state.playing.key.startsWith('task')) stopPlay();
+    task.n = n;
+    task.segs = splitTask(task.an, n);
+    renderTask();
+  }
+
+  function renderTask() {
+    if (!task.buf) return;
+    taskMeta.textContent = fmt(task.buf.duration);
+    segsEl.innerHTML = '';
+    task.segs.forEach((s, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'seg';
+      b.dataset.key = 'task:' + i;
+      b.innerHTML = ICON.fwd + '<span>' + (i + 1) + '</span><span class="d">' + fmt(s.end - s.start) + '</span>';
+      segsEl.appendChild(b);
+    });
+    segCount.textContent = String(task.segs.length);
+    syncPlayUI();
+    updateStepper();
+    wavesFor('task').forEach(drawWave);
+    updateTimes('task');
+  }
+
+  function updateStepper() {
+    const max = task.an ? maxSegs(task.an) : 1;
+    segMinus.disabled = state.recording || task.n <= 1;
+    segPlus.disabled = state.recording || task.n >= max;
+  }
+
+  function taskError(kind) {
+    const texts = {
+      file: 'Страница открыта прямо с диска, и браузер не даёт ей самой прочитать соседний файл ' + TASK_URL + '. Выбери его вручную или открой страницу через сервер.',
+      missing: 'Не нашёл ' + TASK_URL + ' рядом со страницей. Положи файл в ту же папку и обнови страницу или выбери его вручную.',
+      decode: 'Не получилось прочитать ' + TASK_URL + '. Нужен обычный WAV или MP3.'
+    };
+    taskNote.hidden = false;
+    taskNote.dataset.kind = 'error';
+    taskNoteText.textContent = texts[kind] || texts.missing;
+    taskPick.hidden = false;
+  }
+
+  async function loadTask() {
+    taskNoteText.textContent = 'Загружаю ' + TASK_URL + '…';
+    let ab;
+    try {
+      const r = await fetch(TASK_URL, { cache: 'no-cache' });
+      if (!r.ok) { taskError('missing'); return; }
+      ab = await r.arrayBuffer();
+    } catch (_) {
+      taskError(location.protocol === 'file:' ? 'file' : 'missing');
+      return;
+    }
+    try { setTask(await decode(ab)); } catch (_) { taskError('decode'); }
+  }
+
+  function drawTask(cv) {
+    const buf = task.buf;
+    const { g, w, h } = fit(cv);
+    if (!buf) return;
+    const dur = buf.duration, top = 16, bh = h - top;
+    const bw = 2, gap = 1, n = Math.max(1, Math.floor(w / (bw + gap)));
+    const p = peaksFor(buf, n);
+    const pl = state.playing && state.playing.key.startsWith('task') ? state.playing : null;
+    const cur = pl ? pos() : 0;
+    const seg = pl && pl.key !== 'task' ? task.segs[Number(pl.key.slice(5))] : null;
+
+    // part boundaries + numbers
+    g.font = '500 10px ' + getComputedStyle(document.body).getPropertyValue('--f-mono');
+    task.segs.forEach((s, i) => {
+      const x = Math.round((s.start / dur) * w), x2 = Math.round((s.end / dur) * w);
+      if (i > 0) { g.fillStyle = C.muted; g.globalAlpha = 0.6; g.fillRect(x, 0, 1, h); }
+      if (x2 - x >= 16) {
+        g.globalAlpha = seg && seg === s ? 1 : 0.8;
+        g.fillStyle = seg && seg === s ? C.ink : C.muted;
+        g.fillText(String(i + 1), x + 4, 11);
+      }
+    });
+
+    g.fillStyle = C.ink;
+    for (let i = 0; i < n; i++) {
+      const x = i * (bw + gap), t = ((x + bw / 2) / w) * dur;
+      const hh = Math.max(1.5, Math.sqrt(p[i]) * (bh - 4));
+      let a = 0.6;
+      if (pl) {
+        if (seg) a = t >= seg.start && t < seg.end ? (t <= cur ? 1 : 0.4) : 0.14;
+        else a = t <= cur ? 1 : 0.3;
+      }
+      g.globalAlpha = a;
+      g.fillRect(x, top + (bh - hh) / 2, bw, hh);
+    }
+    g.globalAlpha = 1;
+    if (pl) g.fillRect(Math.round((cur / dur) * w) - 1, top, 2, bh);
+  }
+
+  // ================= MIC + RECORDING =================
+  let levels = [], micRaf = 0, analyser = null, tdata = null, lastPush = 0, peakAcc = 0, recStart = 0;
+
+  function drawLive() {
+    const { g, w, h } = fit(live);
+    g.fillStyle = C.line;
+    g.fillRect(0, h / 2 - 0.5, w, 1);
+    const step = 4, n = Math.floor(w / step), arr = levels.slice(-n);
+    const x0 = w - arr.length * step;
+    for (let i = 0; i < arr.length; i++) {
+      const hh = Math.max(2, Math.min(1, Math.sqrt(arr[i].v) * 1.15) * h * 0.92);
+      g.fillStyle = arr[i].rec ? C.rec : C.muted;
+      g.globalAlpha = arr[i].rec ? 1 : 0.55;
+      g.fillRect(x0 + i * step, (h - hh) / 2, 2.5, hh);
+    }
+    g.globalAlpha = 1;
+  }
+
+  function micLoop(now) {
+    if (!analyser) return;
+    analyser.getFloatTimeDomainData(tdata);
+    for (let i = 0; i < tdata.length; i++) { const a = Math.abs(tdata[i]); if (a > peakAcc) peakAcc = a; }
+    if (now - lastPush > 45) {
+      levels.push({ v: peakAcc, rec: state.recording }); peakAcc = 0; lastPush = now;
+      if (levels.length > 1500) levels.splice(0, levels.length - 1500);
+    }
+    if (state.recording) timerEl.textContent = fmt((performance.now() - recStart) / 1000);
+    drawLive();
+    micRaf = requestAnimationFrame(micLoop);
+  }
+
+  let stream = null, recorder = null, srcNode = null, starting = false, busy = false;
+  const micOn = () => !!(stream && stream.getAudioTracks().some((t) => t.readyState === 'live'));
+
+  function micError(e) {
+    const n = e && e.name;
+    if (n === 'NotAllowedError' || n === 'SecurityError' || n === 'PermissionDeniedError')
+      return 'Браузер не дал доступ к микрофону. Разреши его: значок слева от адресной строки → Микрофон → Разрешить, затем нажми запись ещё раз. Или добавь готовый аудиофайл.';
+    if (n === 'NotFoundError' || n === 'OverconstrainedError' || n === 'DevicesNotFoundError')
+      return 'Микрофон не найден. Подключи его или добавь готовый аудиофайл.';
+    if (n === 'NotReadableError' || n === 'TrackStartError')
+      return 'Микрофон занят другой программой (созвон, мессенджер). Закрой её и попробуй снова.';
+    return 'Не удалось включить микрофон' + (e && e.message ? ': ' + e.message : '.');
+  }
+
+  async function ensureMic() {
+    if (micOn()) return true;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+      say('Здесь браузер не даёт записывать с микрофона. Открой страницу в Chrome, Edge или Firefox либо добавь готовый аудиофайл.', 'error');
+      return false;
+    }
+    const a = audio();
+    try { await a.resume(); } catch (_) {}
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    } catch (e) { stream = null; say(micError(e), 'error'); return false; }
+
+    stream.getAudioTracks().forEach((t) => t.addEventListener('ended', () => {
+      if (state.recording) stopRec();
+      releaseMic();
+      say('Микрофон отключился. Нажми запись, чтобы включить его снова.', 'error');
+    }));
+    srcNode = a.createMediaStreamSource(stream);
+    analyser = a.createAnalyser();
+    analyser.fftSize = 1024;
+    tdata = new Float32Array(analyser.fftSize);
+    srcNode.connect(analyser);
+    levels = []; peakAcc = 0; lastPush = 0;
+    cancelAnimationFrame(micRaf);
+    micRaf = requestAnimationFrame(micLoop);
+    return true;
+  }
+
+  function releaseMic() {
+    if (state.recording) return;
+    cancelAnimationFrame(micRaf);
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    try { srcNode && srcNode.disconnect(); } catch (_) {}
+    stream = null; srcNode = null; analyser = null;
+    levels = [];
+    setRecUI();
+    drawLive();
+  }
+
+  async function startRec() {
+    if (state.recording || starting || busy) return;
+    starting = true;
+    stopPlay();
+    say('');
+    const ok = await ensureMic();
+    starting = false;
+    if (!ok) return;
+
+    const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+    const mime = MediaRecorder.isTypeSupported ? types.find((t) => MediaRecorder.isTypeSupported(t)) : undefined;
+    let rec;
+    try { rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined); }
+    catch (_) { rec = new MediaRecorder(stream); }
+
+    const chunks = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = () => finishRec(rec, chunks);
+    rec.start(250);
+    recorder = rec;
+
+    state.recording = true;
+    recStart = performance.now();
+    timerEl.textContent = fmt(0);
+    setRecUI();
+  }
+
+  function stopRec() {
+    if (!state.recording) return;
+    state.recording = false;
+    busy = true;
+    try { recorder.stop(); } catch (_) { busy = false; }
+    setRecUI();
+    if (busy) stateEl.textContent = 'склеиваю';
+  }
+
+  async function finishRec(rec, chunks) {
+    const type = rec.mimeType || (chunks[0] && chunks[0].type) || 'audio/webm';
+    const blob = new Blob(chunks, { type });
+    if (!blob.size) {
+      say('Запись пустая. Проверь, какой микрофон выбран в браузере, и попробуй ещё раз.', 'error');
+    } else {
+      try { addPart(await decode(await blob.arrayBuffer())); }
+      catch (_) { say('Не получилось обработать запись. Попробуй ещё раз.', 'error'); }
+    }
+    busy = false;
+    setRecUI();
+  }
+
+  const toggleRec = () => (state.recording ? stopRec() : startRec());
+
+  function setRecUI() {
+    const next = state.parts.length + 1, mic = micOn();
+    recBtn.classList.toggle('on', state.recording);
+    recBtn.setAttribute('aria-pressed', String(state.recording));
+    recBtn.setAttribute('aria-label', state.recording ? 'Остановить запись' : 'Записать часть ' + next);
+    stateEl.textContent = state.recording ? 'запись · часть ' + next : (mic ? 'пауза · дальше часть ' : 'часть ') + next;
+    stateEl.dataset.on = state.recording ? '1' : (mic ? 'mic' : '');
+    micBtn.hidden = !mic || state.recording;
+    document.querySelectorAll('.play, .seg, .dl, .del').forEach((b) => { b.disabled = state.recording; });
+    fileBtn.disabled = state.recording;
+    clearBtn.disabled = state.recording;
+    taskPick.disabled = state.recording;
+    updateStepper();
+  }
+
+  // ================= MY PARTS: glue + reverse =================
+  function addPart(buf) {
+    if (buf.duration < 0.15) { say('Часть слишком короткая, не добавил. Запиши хотя бы секунду.', 'error'); return false; }
+    state.parts.push({ id: state.nextId++, buf });
+    rebuild();
+    return true;
+  }
+
+  function removePart(id) {
+    state.parts = state.parts.filter((p) => p.id !== id);
+    rebuild();
+  }
+
+  function glue(parts) {
+    const a = audio(), sr = a.sampleRate;
+    const ch = Math.max(...parts.map((p) => p.buf.numberOfChannels));
+    const len = parts.reduce((s, p) => s + p.buf.length, 0);
+    const out = a.createBuffer(ch, len, sr);
+    const bounds = [];
+    let off = 0;
+    for (const p of parts) {
+      const b = p.buf, n = b.length, fade = Math.min(Math.floor(sr * 0.008), n >> 1);
+      for (let c = 0; c < ch; c++) {
+        const d = out.getChannelData(c);
+        d.set(b.getChannelData(Math.min(c, b.numberOfChannels - 1)), off);
+        for (let i = 0; i < fade; i++) { const k = i / fade; d[off + i] *= k; d[off + n - 1 - i] *= k; }
+      }
+      off += n;
+      if (off < len) bounds.push(off / len);
+    }
+    return { buf: out, bounds };
+  }
+
+  function reverse(buf) {
+    const out = audio().createBuffer(buf.numberOfChannels, buf.length, buf.sampleRate);
+    for (let c = 0; c < buf.numberOfChannels; c++) {
+      const d = out.getChannelData(c);
+      d.set(buf.getChannelData(c));
+      d.reverse();
+    }
+    return out;
+  }
+
+  function rebuild() {
+    const p = state.playing;
+    if (p && (p.key === 'orig' || p.key === 'rev' || !bufOf(p.key))) stopPlay();
+    if (state.parts.length) {
+      const g = glue(state.parts);
+      state.original = g.buf;
+      state.bounds = g.bounds;
+      state.reversed = reverse(g.buf);
+    } else {
+      state.original = state.reversed = null;
+      state.bounds = [];
+    }
+    renderParts();
+    renderResult();
+    setRecUI();
+  }
+
+  function renderParts() {
+    const n = state.parts.length;
+    partsEl.innerHTML = '';
+    state.parts.forEach((p, i) => {
+      const li = document.createElement('li');
+      li.className = 'part';
+      li.innerHTML =
+        '<span class="pnum">' + (i + 1) + '</span>' +
+        '<button class="play small" type="button" data-key="p' + p.id + '"></button>' +
+        '<canvas class="wave" data-key="p' + p.id + '" aria-hidden="true"></canvas>' +
+        '<span class="time" data-time="p' + p.id + '"></span>' +
+        '<button class="del" type="button" data-id="' + p.id + '" aria-label="Удалить часть ' + (i + 1) + '">' + ICON.del + '</button>';
+      partsEl.appendChild(li);
+    });
+    partsEl.hidden = !n;
+    partsEmpty.hidden = !!n;
+    clearBtn.hidden = !n;
+    partsMeta.textContent = n ? partsWord(n) + ' · ' + fmt(totalDur()) : '';
+    observeCanvases();
+    syncPlayUI();
+    updateTimes();
+  }
+
+  function renderResult() {
+    const n = state.parts.length;
+    resultEl.hidden = !n;
+    const gen = (n % 10 === 1 && n % 100 !== 11) ? 'части' : 'частей';
+    resultMeta.textContent = n ? (n === 1 ? 'одна часть' : 'склеено из ' + n + ' ' + gen) : '';
+    drawAllWaves();
+    updateTimes();
+  }
+
+  // ================= WAVEFORMS =================
+  const peakCache = new WeakMap();
+  function peaksFor(buf, n) {
+    const hit = peakCache.get(buf);
+    if (hit && hit.n === n) return hit.p;
+    const ch = buf.numberOfChannels, d0 = buf.getChannelData(0), d1 = ch > 1 ? buf.getChannelData(1) : null;
+    const len = buf.length, step = len / n, p = new Float32Array(n);
+    let max = 0;
+    for (let i = 0; i < n; i++) {
+      const s = Math.floor(i * step), e = Math.min(len, Math.floor((i + 1) * step));
+      let m = 0;
+      for (let j = s; j < e; j++) {
+        let v = Math.abs(d0[j]);
+        if (d1) { const v2 = Math.abs(d1[j]); if (v2 > v) v = v2; }
+        if (v > m) m = v;
+      }
+      p[i] = m; if (m > max) max = m;
+    }
+    if (max > 0) for (let i = 0; i < n; i++) p[i] /= max;
+    peakCache.set(buf, { n, p });
+    return p;
+  }
+
+  function bufOf(key) {
+    if (key.startsWith('task')) return task.buf;
+    if (key === 'orig') return state.original;
+    if (key === 'rev') return state.reversed;
+    const id = Number(key.slice(1));
+    const part = state.parts.find((p) => p.id === id);
+    return part ? part.buf : null;
+  }
+  const viewKey = (key) => (key.startsWith('task') ? 'task' : key);
+  const pos = () => {
+    const p = state.playing;
+    return p ? Math.min(p.to, Math.max(p.from, audio().currentTime - p.t0)) : 0;
+  };
+
+  function drawWave(cv) {
+    const key = cv.dataset.key;
+    if (key === 'task') return drawTask(cv);
+    const buf = bufOf(key);
+    const { g, w, h } = fit(cv);
+    if (!buf) return;
+    const bw = 2, gap = 1, n = Math.max(1, Math.floor(w / (bw + gap)));
+    const p = peaksFor(buf, n);
+    const isPlaying = !!(state.playing && state.playing.key === key);
+    const prog = isPlaying ? pos() / buf.duration : 0;
+    const color = key === 'rev' ? C.accent : C.ink;
+    const rest = isPlaying ? 0.3 : (key === 'rev' ? 0.9 : key === 'orig' ? 0.55 : 0.45);
+
+    if ((key === 'orig' || key === 'rev') && state.bounds.length) {
+      g.fillStyle = C.muted;
+      g.globalAlpha = 0.7;
+      for (const b of state.bounds) {
+        const x = Math.round((key === 'rev' ? 1 - b : b) * w);
+        g.fillRect(x, 0, 1, 6);
+        g.fillRect(x, h - 6, 1, 6);
+      }
+    }
+
+    g.fillStyle = color;
+    for (let i = 0; i < n; i++) {
+      const x = i * (bw + gap);
+      const hh = Math.max(1.5, Math.sqrt(p[i]) * (h - 14) * 0.98);
+      g.globalAlpha = isPlaying && (x + bw) / w <= prog ? 1 : rest;
+      g.fillRect(x, (h - hh) / 2, bw, hh);
+    }
+    g.globalAlpha = 1;
+    if (isPlaying) g.fillRect(Math.round(prog * w) - 1, 0, 2, h);
+  }
+  const wavesFor = (key) => document.querySelectorAll('canvas.wave[data-key="' + viewKey(key) + '"]');
+  const drawAllWaves = () => document.querySelectorAll('canvas.wave').forEach(drawWave);
+
+  function updateTimes(onlyKey) {
+    const only = onlyKey ? viewKey(onlyKey) : null;
+    document.querySelectorAll('[data-time]').forEach((el) => {
+      const key = el.dataset.time;
+      if (only && key !== only) return;
+      const buf = bufOf(key);
+      if (!buf) { el.textContent = ''; return; }
+      const p = state.playing && viewKey(state.playing.key) === key ? state.playing : null;
+      if (!p) { el.textContent = fmt(buf.duration); return; }
+      if (p.key.startsWith('task:')) {
+        el.textContent = 'часть ' + (Number(p.key.slice(5)) + 1) + ' · ' + fmt(pos() - p.from) + ' / ' + fmt(p.to - p.from);
+      } else {
+        el.textContent = fmt(pos()) + ' / ' + fmt(buf.duration);
+      }
+    });
+  }
+
+  // ================= PLAYBACK =================
+  let playRaf = 0;
+  function play(key, offset) {
+    stopPlay();
+    const buf = bufOf(key);
+    if (!buf) return;
+    let from, to;
+    if (key.startsWith('task:')) {
+      const s = task.segs[Number(key.slice(5))];
+      if (!s) return;
+      from = s.start; to = s.end;
+    } else {
+      from = Math.min(Math.max(0, offset || 0), Math.max(0, buf.duration - 0.02));
+      to = buf.duration;
+    }
+    const a = audio();
+    if (a.state === 'suspended') a.resume();
+    const src = a.createBufferSource();
+    src.buffer = buf;
+    src.connect(a.destination);
+    src.start(0, from, to - from);
+    const p = { key, src, buf, from, to, t0: a.currentTime - from };
+    state.playing = p;
+    src.onended = () => {
+      if (state.playing !== p) return;
+      state.playing = null;
+      cancelAnimationFrame(playRaf);
+      syncPlayUI(); wavesFor(key).forEach(drawWave); updateTimes(key);
+    };
+    syncPlayUI();
+    progressLoop();
+  }
+
+  function stopPlay() {
+    const p = state.playing;
+    if (!p) return;
+    state.playing = null;
+    try { p.src.stop(); } catch (_) {}
+    cancelAnimationFrame(playRaf);
+    syncPlayUI(); wavesFor(p.key).forEach(drawWave); updateTimes(p.key);
+  }
+
+  function progressLoop() {
+    const p = state.playing;
+    if (!p) return;
+    wavesFor(p.key).forEach(drawWave);
+    updateTimes(p.key);
+    playRaf = requestAnimationFrame(progressLoop);
+  }
+
+  function playLabel(key) {
+    if (key === 'task') return 'задание целиком';
+    if (key.startsWith('task:')) return 'часть задания ' + (Number(key.slice(5)) + 1);
+    if (key === 'orig') return 'склеенную запись';
+    if (key === 'rev') return 'запись наоборот';
+    const id = Number(key.slice(1));
+    return 'мою часть ' + (state.parts.findIndex((p) => p.id === id) + 1);
+  }
+
+  function syncPlayUI() {
+    const cur = state.playing ? state.playing.key : null;
+    document.querySelectorAll('.play').forEach((b) => {
+      const key = b.dataset.key, on = cur === key;
+      b.innerHTML = on ? ICON.stop : (key === 'rev' ? ICON.rev : ICON.fwd);
+      b.setAttribute('aria-label', (on ? 'Остановить ' : 'Слушать ') + playLabel(key));
+    });
+    document.querySelectorAll('.seg').forEach((b) => {
+      const key = b.dataset.key, on = cur === key;
+      b.setAttribute('aria-pressed', String(on));
+      b.setAttribute('aria-label', (on ? 'Остановить ' : 'Слушать ') + playLabel(key));
+      const svg = b.querySelector('svg');
+      if (svg) svg.outerHTML = on ? ICON.stop : ICON.fwd;
+    });
+  }
+
+  // ================= WAV EXPORT =================
+  function toWav(buf) {
+    const ch = buf.numberOfChannels, sr = buf.sampleRate, len = buf.length;
+    const size = 44 + len * ch * 2, ab = new ArrayBuffer(size), v = new DataView(ab);
+    const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    str(0, 'RIFF'); v.setUint32(4, size - 8, true); str(8, 'WAVE');
+    str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, ch, true);
+    v.setUint32(24, sr, true); v.setUint32(28, sr * ch * 2, true); v.setUint16(32, ch * 2, true); v.setUint16(34, 16, true);
+    str(36, 'data'); v.setUint32(40, len * ch * 2, true);
+    const data = [];
+    for (let c = 0; c < ch; c++) data.push(buf.getChannelData(c));
+    let o = 44;
+    for (let i = 0; i < len; i++) {
+      for (let c = 0; c < ch; c++) {
+        const s = Math.max(-1, Math.min(1, data[c][i]));
+        v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+        o += 2;
+      }
+    }
+    return new Blob([ab], { type: 'audio/wav' });
+  }
+
+  function download(key) {
+    const buf = bufOf(key);
+    if (!buf) return;
+    const url = URL.createObjectURL(toWav(buf));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'zapis-' + stamp() + (key === 'rev' ? '-naoborot' : '') + '.wav';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  // ================= FILES =================
+  async function addFiles(list) {
+    if (state.recording || !list.length) return;
+    stopPlay();
+    const bad = [];
+    for (const f of list) {
+      say('Открываю «' + f.name + '»…');
+      try {
+        if (!addPart(await decode(await f.arrayBuffer()))) bad.push(f.name);
+      } catch (_) { bad.push(f.name); }
+    }
+    say(bad.length ? 'Не получилось добавить: ' + bad.map((n) => '«' + n + '»').join(', ') + '. Подойдут MP3, WAV, M4A, OGG или WEBM длиннее секунды.' : '', bad.length ? 'error' : '');
+  }
+
+  // ================= EVENTS =================
+  recBtn.addEventListener('click', toggleRec);
+  micBtn.addEventListener('click', () => { releaseMic(); say(''); });
+  fileBtn.addEventListener('click', () => { audio(); fileInput.click(); });
+  fileInput.addEventListener('change', () => {
+    const files = fileInput.files ? [...fileInput.files] : [];
+    fileInput.value = '';
+    addFiles(files);
+  });
+
+  taskPick.addEventListener('click', () => { audio(); taskFile.click(); });
+  taskFile.addEventListener('change', async () => {
+    const f = taskFile.files && taskFile.files[0];
+    taskFile.value = '';
+    if (!f) return;
+    try { setTask(await decode(await f.arrayBuffer())); } catch (_) { taskError('decode'); }
+  });
+  segMinus.addEventListener('click', () => setSegCount(task.n - 1));
+  segPlus.addEventListener('click', () => setSegCount(task.n + 1));
+
+  let clearTimer = 0;
+  clearBtn.addEventListener('click', () => {
+    if (!clearTimer) {
+      clearBtn.textContent = 'Точно удалить все части?';
+      clearBtn.classList.add('armed');
+      clearTimer = setTimeout(() => { clearTimer = 0; clearBtn.textContent = 'Очистить'; clearBtn.classList.remove('armed'); }, 3000);
+      return;
+    }
+    clearTimeout(clearTimer); clearTimer = 0;
+    clearBtn.textContent = 'Очистить'; clearBtn.classList.remove('armed');
+    stopPlay();
+    state.parts = [];
+    say('');
+    rebuild();
+  });
+
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    const pb = t.closest('.play, .seg');
+    if (pb) {
+      const key = pb.dataset.key;
+      if (state.playing && state.playing.key === key) stopPlay(); else play(key, 0);
+      return;
+    }
+    const del = t.closest('.del');
+    if (del) { removePart(Number(del.dataset.id)); return; }
+    const dl = t.closest('.dl');
+    if (dl) { download(dl.dataset.key); return; }
+    const cv = t.closest('canvas.wave');
+    if (cv && !state.recording) {
+      const buf = bufOf(cv.dataset.key);
+      if (!buf) return;
+      const r = cv.getBoundingClientRect();
+      play(cv.dataset.key, ((e.clientX - r.left) / r.width) * buf.duration);
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.code !== 'Space' || e.repeat) return;
+    if (e.target && e.target.closest && e.target.closest('button, input, textarea, select, a')) return;
+    e.preventDefault();
+    toggleRec();
+  });
+
+  let dragDepth = 0;
+  document.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; deck.classList.add('drag'); });
+  document.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) deck.classList.remove('drag'); });
+  document.addEventListener('dragover', (e) => e.preventDefault());
+  document.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragDepth = 0; deck.classList.remove('drag');
+    const files = e.dataTransfer && e.dataTransfer.files ? [...e.dataTransfer.files] : [];
+    addFiles(files);
+  });
+
+  const ro = new ResizeObserver((entries) => {
+    for (const en of entries) {
+      if (en.target === live) drawLive(); else drawWave(en.target);
+    }
+  });
+  function observeCanvases() {
+    ro.disconnect();
+    ro.observe(live);
+    document.querySelectorAll('canvas.wave').forEach((cv) => ro.observe(cv));
+  }
+
+  observeCanvases();
+  syncPlayUI();
+  setRecUI();
+  drawLive();
+  loadTask();
+})();
+</script>
+</body>
+</html>
